@@ -1,0 +1,64 @@
+#!/bin/sh
+
+cdrom=/Mount/CD-ROM
+
+# Try IDE CDROMs
+for d in /proc/ide/hd*
+do
+   type=`cat $d/media`
+   if [ "$type" = "cdrom" ]
+   then
+      devname=`basename $d`
+      device="/dev/$devname"
+      mount -t iso9660 "$device" "$cdrom" 2> /dev/null
+      if [ $? = 0 ]
+      then
+         # Check for squashfs
+         ls $cdrom/*.squashfs > /dev/null 2> /dev/null && exit 0
+         umount "$cdrom"
+      fi
+   fi
+done
+
+# Ok, try SCSI drives
+for device in /dev/sr* /dev/scd*
+do
+   mount -t iso9660 "$device" "$cdrom" 2> /dev/null
+   if [ $? = 0 ]
+   then
+      # Check for squashfs
+      ls $cdrom/*.squashfs > /dev/null  2> /dev/null && exit 0
+      umount "$cdrom"
+   fi
+done
+
+echo "Wait for USB bus to stabilize..."
+sleep 15
+
+# Ok, try SCSI drives (for USB)
+for device in /dev/sr* /dev/scd*
+do
+   mount -t iso9660 "$device" "$cdrom" 2> /dev/null
+   if [ $? = 0 ]
+   then
+      # Check for squashfs
+      ls $cdrom/*.squashfs > /dev/null  2> /dev/null && exit 0
+      umount "$cdrom"
+   fi
+done
+
+# Ok, try SCSI disks (for USB flash)
+for device in /dev/sd*
+do
+   mount -o noatime,rw -t vfat "$device" "$cdrom" 
+   if [ $? = 0 ]
+   then
+      # Check for squashfs
+      ls $cdrom/*.squashfs && exit 0
+      umount "$cdrom"
+   fi
+done
+
+echo "Opps. Can't mount fs.  Please mount on $cdrom"
+/bin/ash
+

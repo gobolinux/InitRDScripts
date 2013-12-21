@@ -1,0 +1,63 @@
+#!/bin/ash
+
+/bin/mount -t proc  none /System/Kernel/Status
+
+echo "Mounting GoboLinux Install CD..."
+/bin/mountGoboLinux 
+
+if [ -f /Mount/CD-ROM/Root-RW.ext2 ]
+then
+   echo "Using Root-RW.ext2 for RW Layer..."
+   mount -o loop,noatime,rw -t ext2 /Mount/CD-ROM/Root-RW.ext2 /Mount/UnionFS
+else
+   echo "Preparing TmpFS RW Layer..."
+   /bin/mount -t tmpfs none /Mount/UnionFS
+fi
+
+echo "Initializing GoboLinux squashfs files..."
+
+# Mounting Packages*.squashfs files inside /Mount/SquashFS
+mount -t tmpfs none /Mount/SquashFS
+mkdir /Mount/SquashFS/Rest
+mkdir /Mount/SquashFS/Files
+mkdir /Mount/SquashFS/Aliens
+
+unset unmanaged
+unset unionmountprograms
+for i in /Mount/CD-ROM/Packages*.squashfs
+do
+    squashdir=`basename $i .squashfs`
+    mkdir /Mount/SquashFS/$squashdir
+    mount -o loop,ro -t squashfs $i /Mount/SquashFS/$squashdir
+    unionmountprograms="$unionmountprograms:/Mount/SquashFS/$squashdir=ro"
+    
+    for pkg in /Mount/SquashFS/$squashdir/Programs/*
+    do
+        udir="$pkg/Current/Resources/Unmanaged"
+        [ -d "$udir" ] && unmanaged="$unmanaged $udir"
+    done
+done
+
+# Mounting 'GoboLinux-{rest,files}.squashfs' (still harcoded names)
+mount -o loop,ro -t squashfs /Mount/CD-ROM/GoboLinux-rest.squashfs  /Mount/SquashFS/Rest
+mount -o loop,ro -t squashfs /Mount/CD-ROM/GoboLinux-files.squashfs /Mount/SquashFS/Files
+mount -o loop,ro -t squashfs /Mount/CD-ROM/GoboLinux-aliens.squashfs /Mount/SquashFS/Aliens
+
+dirs="/Mount/UnionFS=rw${unionmountprograms}:/Mount/SquashFS/Rest=ro:/Mount/SquashFS/Files=ro"
+for dir in $unmanaged; do dirs="$dirs:${dir}=ro"; done
+dirs="$dirs:/Mount/SquashFS/Aliens=ro"
+
+echo "Union-mounting directories with 'chroot' option"
+unionfs -o dirs=$dirs -o chroot="/Mount/TmpFS" /Mount/TmpFS
+
+echo "Performing pivot_root..."
+cd /Mount/TmpFS
+/bin/pivot_root . Mount/.Pivot
+
+# ensure that the inittab from LiveCD is used. this is later replaced
+# by the StartLiveCD script from the LiveCD package.
+ln -nfs /Programs/LiveCD/Settings/inittab /System/Settings/inittab
+
+echo "Invoking init..."
+exec /sbin/init
+echo "Done."
