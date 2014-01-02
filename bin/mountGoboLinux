@@ -3,26 +3,30 @@
 cdrom=/Mount/CD-ROM
 
 # Try IDE CDROMs
-for d in /proc/ide/hd*
-do
-   type=`cat $d/media`
-   if [ "$type" = "cdrom" ]
-   then
-      devname=`basename $d`
-      device="/dev/$devname"
-      mount -t iso9660 "$device" "$cdrom" 2> /dev/null
-      if [ $? = 0 ]
+if [ -d /proc/ide ]
+then
+   for d in /proc/ide/hd*
+   do
+      type=`cat $d/media`
+      if [ "$type" = "cdrom" ]
       then
-         # Check for squashfs
-         ls $cdrom/*.squashfs > /dev/null 2> /dev/null && exit 0
-         umount "$cdrom"
+         devname=`basename $d`
+         device="/dev/$devname"
+         mount -t iso9660 "$device" "$cdrom" 2> /dev/null
+         if [ $? = 0 ]
+         then
+            # Check for squashfs
+            ls $cdrom/*.squashfs > /dev/null 2> /dev/null && exit 0
+            umount "$cdrom"
+         fi
       fi
-   fi
-done
+   done
+fi
 
 # Ok, try SCSI drives
 for device in /dev/sr* /dev/scd*
 do
+   [ -z "$device" ] && continue
    mount -t iso9660 "$device" "$cdrom" 2> /dev/null
    if [ $? = 0 ]
    then
@@ -38,6 +42,7 @@ sleep 15
 # Ok, try SCSI drives (for USB)
 for device in /dev/sr* /dev/scd*
 do
+   [ -z "$device" ] && continue
    mount -t iso9660 "$device" "$cdrom" 2> /dev/null
    if [ $? = 0 ]
    then
@@ -50,6 +55,7 @@ done
 # Ok, try SCSI disks (for USB flash)
 for device in /dev/sd*
 do
+   [ -z "$device" ] && continue
    mount -o noatime,rw -t vfat "$device" "$cdrom" 
    if [ $? = 0 ]
    then
