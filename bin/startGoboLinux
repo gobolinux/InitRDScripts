@@ -44,11 +44,20 @@ mount -o loop,ro -t squashfs /Mount/CD-ROM/GoboLinux-files.squashfs /Mount/Squas
 mount -o loop,ro -t squashfs /Mount/CD-ROM/GoboLinux-aliens.squashfs /Mount/SquashFS/Aliens
 
 dirs="/Mount/UnionFS=rw${unionmountprograms}:/Mount/SquashFS/Rest=ro:/Mount/SquashFS/Files=ro"
-for dir in $unmanaged; do dirs="$dirs:${dir}=ro"; done
 dirs="$dirs:/Mount/SquashFS/Aliens=ro"
 
-echo "Union-mounting directories with 'chroot' option"
-unionfs -o dirs=$dirs -o chroot="/Mount/TmpFS" /Mount/TmpFS
+echo "Union-mounting directories"
+mount -t aufs -o br=$dirs none /Mount/TmpFS
+
+if [ ! -z "$unmanaged" ]
+then
+    echo "Bind-mounting directories"
+    for dir in $unmanaged
+    do
+        mkdir -p /Mount/TmpFS/$dir
+        mount -o bind "$dir" /Mount/TmpFS/$dir
+    done
+fi
 
 echo "Performing pivot_root..."
 cd /Mount/TmpFS
