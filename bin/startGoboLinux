@@ -30,12 +30,6 @@ do
     mkdir /Mount/SquashFS/$squashdir
     mount -o loop,ro -t squashfs $i /Mount/SquashFS/$squashdir
     unionmountprograms="$unionmountprograms:/Mount/SquashFS/$squashdir=ro"
-    
-    for pkg in /Mount/SquashFS/$squashdir/Programs/*
-    do
-        udir="$pkg/Current/Resources/Unmanaged"
-        [ -d "$udir" ] && unmanaged="$unmanaged $udir"
-    done
 done
 
 # Mounting 'GoboLinux-{rest,files}.squashfs' (still harcoded names)
@@ -49,15 +43,20 @@ dirs="$dirs:/Mount/SquashFS/Aliens=ro"
 echo "Union-mounting directories"
 mount -t aufs -o br=$dirs none /Mount/TmpFS
 
-if [ ! -z "$unmanaged" ]
-then
-    echo "Bind-mounting directories"
-    for dir in $unmanaged
-    do
-        mkdir -p /Mount/TmpFS/$dir
-        mount -o bind "$dir" /Mount/TmpFS/$dir
-    done
-fi
+echo "Installing unmanaged files"
+for pkg in /Mount/TmpFS/Programs/*
+do
+   unmanageddir="$pkg/Current/Resources/Unmanaged"
+   [ ! -d "$unmanageddir" ] && continue
+   if [ $(basename "$pkg") = "Linux" ]
+   then
+      # These files are way too big to be copied.
+      mount -o bind "$unmanageddir/System/Kernel/Boot" /Mount/TmpFS/System/Kernel/Boot
+      mount -o bind "$unmanageddir/System/Kernel/Modules" /Mount/TmpFS/System/Kernel/Modules
+   else
+      cp -r "$unmanageddir/"* /Mount/TmpFS/ 
+   fi
+done
 
 echo "Performing pivot_root..."
 cd /Mount/TmpFS
