@@ -53,6 +53,16 @@ do
       # These files are way too big to be copied.
       mount -o bind "$unmanageddir/System/Kernel/Boot" /Mount/TmpFS/System/Kernel/Boot
       mount -o bind "$unmanageddir/System/Kernel/Modules" /Mount/TmpFS/System/Kernel/Modules
+   elif [ $(basename "$pkg") = "Linux-Firmware" ]
+   then
+      # These files are way too big to be copied, too.
+      lndir="$(echo $unmanageddir | sed 's,/Mount/TmpFS,,g')/System/Links/Libraries/firmware"
+      mkdir -p /Mount/TmpFS/System/Links/Libraries/firmware/
+      for i in "/Mount/TmpFS${lndir}"/*
+      do
+          bname=$(basename $i)
+          ln -fs $lndir/$bname /Mount/TmpFS/System/Links/Libraries/firmware/$bname
+      done
    else
       cp -r "$unmanageddir/"* /Mount/TmpFS/ 
    fi
