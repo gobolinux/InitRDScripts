@@ -41,7 +41,7 @@ dirs="/Mount/UnionFS=rw${unionmountprograms}:/Mount/SquashFS/Rest=ro:/Mount/Squa
 dirs="$dirs:/Mount/SquashFS/Aliens=ro"
 
 echo "Union-mounting directories"
-mount -t aufs -o br=$dirs none /Mount/TmpFS
+mount -t aufs -o br=$dirs /dev/root /Mount/TmpFS
 
 echo "Installing unmanaged files"
 for pkg in /Mount/TmpFS/Programs/*
