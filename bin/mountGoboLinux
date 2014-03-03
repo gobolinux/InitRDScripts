@@ -41,7 +41,11 @@ do
 done
 
 echo "Wait for USB bus to stabilize..."
-sleep 3
+modprobe ehci-pci
+modprobe ohci-pci
+modprobe sdhci-pci
+modprobe usb-storage
+sleep 5
 
 # Ok, try SCSI drives (for USB and USB flash)
 for device in /dev/sr* /dev/scd* /dev/sd*
