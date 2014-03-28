@@ -2,6 +2,9 @@
 
 cdrom=/Mount/CD-ROM
 
+# Make sure we have a same dependencies file
+depmod -a
+
 # Scan for devices
 mount -t sysfs none /System/Kernel/Objects
 mdev -s
@@ -41,11 +44,20 @@ do
 done
 
 echo "Wait for USB bus to stabilize..."
+modprobe usbcore
 modprobe ehci-pci
 modprobe ohci-pci
+modprobe xhci-hcd
 modprobe sdhci-pci
 modprobe usb-storage
-sleep 5
+
+for i in `seq 11`
+do
+   if dmesg | grep -q "removable disk"
+   then break
+   else sleep 1
+   fi
+done
 
 # Ok, try SCSI drives (for USB and USB flash)
 for device in /dev/sr* /dev/scd* /dev/sd*
@@ -62,4 +74,3 @@ done
 
 echo "Opps. Can't mount fs.  Please mount on $cdrom"
 /bin/ash
-
