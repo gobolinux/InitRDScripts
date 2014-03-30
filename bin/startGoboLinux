@@ -1,6 +1,6 @@
 #!/bin/ash
 
-/bin/mount -t proc  none /System/Kernel/Status
+/bin/mount -t proc  none /proc
 
 echo "Mounting GoboLinux Install CD..."
 /bin/mountGoboLinux 

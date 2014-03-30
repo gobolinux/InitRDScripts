@@ -6,7 +6,7 @@ cdrom=/Mount/CD-ROM
 depmod -a
 
 # Scan for devices
-mount -t sysfs none /System/Kernel/Objects
+mount -t sysfs none /sys
 mdev -s
 
 # Try IDE CDROMs
