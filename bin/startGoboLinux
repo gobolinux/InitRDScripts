@@ -12,6 +12,8 @@ then
 else
    echo "Preparing TmpFS RW Layer..."
    /bin/mount -t tmpfs none /Mount/UnionFS
+   mkdir -p /Mount/UnionFS/root
+   mkdir -p /Mount/UnionFS/work
 fi
 
 echo "Initializing GoboLinux squashfs files..."
@@ -23,13 +25,16 @@ mkdir /Mount/SquashFS/Files
 mkdir /Mount/SquashFS/Aliens
 
 unset unmanaged
-unset unionmountprograms
+unset lowerdirs
 for i in /Mount/CD-ROM/Packages*.squashfs
 do
     squashdir=`basename $i .squashfs`
     mkdir /Mount/SquashFS/$squashdir
     mount -o loop,ro -t squashfs $i /Mount/SquashFS/$squashdir
-    unionmountprograms="$unionmountprograms:/Mount/SquashFS/$squashdir=ro"
+    if [ -z "$lowerdirs" ]
+    then lowerdirs="/Mount/SquashFS/$squashdir"
+    else lowerdirs="$lowerdirs:/Mount/SquashFS/$squashdir"
+    fi
 done
 
 # Mounting 'GoboLinux-{rest,files}.squashfs' (still harcoded names)
@@ -37,11 +42,13 @@ mount -o loop,ro -t squashfs /Mount/CD-ROM/GoboLinux-rest.squashfs  /Mount/Squas
 mount -o loop,ro -t squashfs /Mount/CD-ROM/GoboLinux-files.squashfs /Mount/SquashFS/Files
 mount -o loop,ro -t squashfs /Mount/CD-ROM/GoboLinux-aliens.squashfs /Mount/SquashFS/Aliens
 
-dirs="/Mount/UnionFS=rw${unionmountprograms}:/Mount/SquashFS/Rest=ro:/Mount/SquashFS/Files=ro"
-dirs="$dirs:/Mount/SquashFS/Aliens=ro"
+lowerdirs="${lowerdirs}:/Mount/SquashFS/Rest:/Mount/SquashFS/Files:/Mount/SquashFS/Aliens"
+upperdir="/Mount/UnionFS/root"
+workdir="/Mount/UnionFS/work"
 
+grep -q overlay /proc/filesystems || modprobe overlay
 echo "Union-mounting directories"
-mount -t aufs -o br=$dirs /dev/root /Mount/TmpFS
+mount -t overlay overlay -o "lowerdir=$lowerdirs,upperdir=$upperdir,workdir=$workdir" /Mount/TmpFS
 
 echo "Installing unmanaged files"
 for pkg in /Mount/TmpFS/Programs/*
