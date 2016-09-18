@@ -83,6 +83,9 @@ cd /Mount/TmpFS
 # by the StartLiveCD script from the LiveCD package.
 ln -nfs /Programs/LiveCD/Settings/inittab /System/Settings/inittab
 
+# use the devtmpfs filesystem from the old root filesystem
+mount -o bind /Mount/.Pivot/dev /dev
+
 echo "Invoking init..."
 exec /sbin/init
 echo "Done."
