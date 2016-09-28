@@ -51,6 +51,8 @@ echo "Union-mounting directories"
 mount -t overlay overlay -o "lowerdir=$lowerdirs,upperdir=$upperdir,workdir=$workdir" /Mount/TmpFS
 
 echo "Installing unmanaged files"
+mount -o bind "/Mount/TmpFS/Programs/Linux/Current/lib/modules" /Mount/TmpFS/System/Kernel/Modules
+
 for pkg in /Mount/TmpFS/Programs/*
 do
    unmanageddir="$pkg/Current/Resources/Unmanaged"
@@ -59,7 +61,6 @@ do
    then
       # These files are way too big to be copied.
       mount -o bind "$unmanageddir/System/Kernel/Boot" /Mount/TmpFS/System/Kernel/Boot
-      mount -o bind "$unmanageddir/System/Kernel/Modules" /Mount/TmpFS/System/Kernel/Modules
    elif [ $(basename "$pkg") = "Linux-Firmware" ]
    then
       # These files are way too big to be copied, too.
