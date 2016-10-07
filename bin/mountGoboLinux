@@ -3,11 +3,11 @@
 cdrom=/Mount/CD-ROM
 
 # Make sure we have a sane dependencies file
-moddir=/System/Kernel/Modules/`uname -r`
-libdir=/lib/modules/`uname -r`
-mount -t tmpfs none /tmp; cp -r $moddir/kernel /tmp
-mount -t tmpfs none $moddir; mv /tmp/kernel $moddir
-mount -o bind $moddir $libdir
+libdir=/lib/modules/
+moddir=/System/Kernel/Modules/
+mount -t tmpfs none /tmp; cp -r $libdir/$(uname -r) /tmp
+mount -t tmpfs none $libdir; mv /tmp/$(uname -r) $libdir
+mount -o bind $libdir $moddir
 depmod
 
 # Scan for devices
