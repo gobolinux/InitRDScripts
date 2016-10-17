@@ -50,11 +50,13 @@ done
 
 echo "Wait for USB bus to stabilize..."
 modprobe usbcore
-modprobe ehci-pci
-modprobe ohci-pci
-modprobe xhci-hcd
-modprobe sdhci-pci
+find /lib/modules/`uname -r`/kernel/drivers/usb -name "*hci*" | while read modname
+do
+    module=$(basename $modname | cut -d. -f1)
+    modprobe $module
+done
 modprobe usb-storage
+modprobe uas
 
 for i in `seq 11`
 do
