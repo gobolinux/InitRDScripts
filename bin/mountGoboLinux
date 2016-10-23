@@ -5,79 +5,88 @@ cdrom=/Mount/CD-ROM
 # Make sure we have a sane dependencies file
 libdir=/lib/modules/
 moddir=/System/Kernel/Modules/
+mount -t sysfs none /sys
 mount -t tmpfs none /tmp; cp -r $libdir/$(uname -r) /tmp
 mount -t tmpfs none $libdir; mv /tmp/$(uname -r) $libdir
 mount -o bind $libdir $moddir
 depmod
 
-# Scan for devices
-mount -t sysfs none /sys
-mdev -s
+function MountISO() {
+   # Scan for new devices and create their nodes
+   mdev -s
 
-# Try IDE CDROMs
-if [ -d /proc/ide ]
-then
-   for d in /proc/ide/hd*
-   do
-      type=`cat $d/media`
-      if [ "$type" = "cdrom" ]
-      then
-         devname=`basename $d`
-         device="/dev/$devname"
-         mount -t iso9660 "$device" "$cdrom" 2> /dev/null
-         if [ $? = 0 ]
+   # Try IDE CDROMs
+   if [ -d /proc/ide ]
+   then
+      for d in /proc/ide/hd*
+      do
+         type=`cat $d/media`
+         if [ "$type" = "cdrom" ]
          then
-            # Check for squashfs
-            ls $cdrom/*.squashfs > /dev/null 2> /dev/null && exit 0
-            umount "$cdrom"
+            devname=`basename $d`
+            device="/dev/$devname"
+            mount -t iso9660 "$device" "$cdrom" 2> /dev/null
+            if [ $? = 0 ]
+            then
+               # Check for squashfs
+               ls $cdrom/*.squashfs > /dev/null 2> /dev/null && return 0
+               umount "$cdrom"
+            fi
          fi
+      done
+   fi
+
+   # Ok, try SCSI drives
+   for device in /dev/sr* /dev/scd* /dev/sd*
+   do
+      [ -z "$device" ] && continue
+      mount -t iso9660 "$device" "$cdrom" 2> /dev/null
+      if [ $? = 0 ]
+      then
+         # Check for squashfs
+         ls $cdrom/*.squashfs > /dev/null  2> /dev/null && return 0
+         umount "$cdrom"
       fi
    done
-fi
 
-# Ok, try SCSI drives
-for device in /dev/sr* /dev/scd*
-do
-   [ -z "$device" ] && continue
-   mount -t iso9660 "$device" "$cdrom" 2> /dev/null
-   if [ $? = 0 ]
-   then
-      # Check for squashfs
-      ls $cdrom/*.squashfs > /dev/null  2> /dev/null && exit 0
-      umount "$cdrom"
-   fi
-done
+   # Failed to mount
+   return 1
+}
+
+function LoadModule() {
+   modname="$1"
+   modinfo "$modname" 2> /dev/null && modprobe "$modname"
+}
+
+# Try to mount the ISO image
+MountISO && exit 0
+
+num_devices_before=$(ls /sys/class/block/ | wc -l)
 
 echo "Wait for USB bus to stabilize..."
-modprobe usbcore
-find /lib/modules/`uname -r`/kernel/drivers/usb -name "*hci*" | while read modname
+LoadModule usbcore
+find /lib/modules/`uname -r`/kernel/drivers/usb -name "*hci*" 2> /dev/null | while read modname
 do
-    module=$(basename $modname | cut -d. -f1)
-    modprobe $module
+   module=$(basename $modname | cut -d. -f1)
+   LoadModule $module
 done
-modprobe usb-storage
-modprobe uas
+LoadModule usb-storage
+LoadModule uas
 
-for i in `seq 11`
+for i in `seq 15`
 do
-   if dmesg | grep -q "removable disk"
-   then break
-   else sleep 1
-   fi
-done
-
-# Ok, try SCSI drives (for USB and USB flash)
-for device in /dev/sr* /dev/scd* /dev/sd*
-do
-   [ -z "$device" ] && continue
-   mount -t iso9660 "$device" "$cdrom" 2> /dev/null
-   if [ $? = 0 ]
+   num_devices_after=$(ls /sys/class/block/ | wc -l)
+   if [ $num_devices_after -gt $num_devices_before ]
    then
-      # Check for squashfs
-      ls $cdrom/*.squashfs > /dev/null  2> /dev/null && exit 0
-      umount "$cdrom"
+      sleep 3
+      break
+   else
+      sleep 1
    fi
 done
+
+# Try to mount the ISO image one more time
+MountISO && exit 0
 
 echo "Opps. Can't mount fs.  Please mount on $cdrom"
 /bin/ash
