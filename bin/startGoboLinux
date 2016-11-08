@@ -1,5 +1,21 @@
 #!/bin/ash
 
+#
+# "If it is documented, it isn't a hack"
+#
+# 1) we mount *.squashfs on /Mount/SquashFS/*
+# 2) we create a tmpfs directory on /Mount/TmpFS
+# 3) we create a union (overlayfs) of /Mount/SquashFS/* on /Mount/TmpFS
+# 3) we create a tmpfs on /Mount/Media
+# 3) we bind-mount /Mount/TmpFS/* on /Mount/Media/* (except for GoboLinux-rest.squashfs)
+# 4) we copy /Mount/SquashFS/GoboLinux-rest/* to /Mount/Media
+# 5) /Mount/Media is used as the new root filesystem
+#
+# This whole dance is needed so that we can hide the legacy tree at /Mount/Media (which is
+# a tmpfs). Hiding entries on top of an overlayfs would require special cases in gobohide
+# that we don't want to implement.
+#
+
 /bin/mount -t proc  none /proc
 
 echo "Mounting GoboLinux Install CD..."
@@ -18,12 +34,16 @@ fi
 
 echo "Initializing GoboLinux squashfs files..."
 
-# Mounting Packages*.squashfs files inside /Mount/SquashFS
+##################
+# /Mount/SquashFS
+##################
+
 mount -t tmpfs none /Mount/SquashFS
 mkdir /Mount/SquashFS/Rest
 mkdir /Mount/SquashFS/Files
 mkdir /Mount/SquashFS/Aliens
 
+# Mounting Packages*.squashfs files inside /Mount/SquashFS
 unset unmanaged
 unset lowerdirs
 for i in /Mount/CD-ROM/Packages*.squashfs
@@ -42,7 +62,12 @@ mount -o loop,ro -t squashfs /Mount/CD-ROM/GoboLinux-rest.squashfs  /Mount/Squas
 mount -o loop,ro -t squashfs /Mount/CD-ROM/GoboLinux-files.squashfs /Mount/SquashFS/Files
 mount -o loop,ro -t squashfs /Mount/CD-ROM/GoboLinux-aliens.squashfs /Mount/SquashFS/Aliens
 
-lowerdirs="${lowerdirs}:/Mount/SquashFS/Rest:/Mount/SquashFS/Files:/Mount/SquashFS/Aliens"
+###############
+# /Mount/TmpFS
+###############
+
+# Mounting overlay filesystems on /Mount/TmpFS
+lowerdirs="${lowerdirs}:/Mount/SquashFS/Files:/Mount/SquashFS/Aliens"
 upperdir="/Mount/UnionFS/root"
 workdir="/Mount/UnionFS/work"
 
@@ -50,34 +75,51 @@ grep -q overlay /proc/filesystems || modprobe overlay
 echo "Union-mounting directories"
 mount -t overlay overlay -o "lowerdir=$lowerdirs,upperdir=$upperdir,workdir=$workdir" /Mount/TmpFS
 
-echo "Installing unmanaged files"
-mount -o bind "/Mount/TmpFS/Programs/Linux/Current/lib/modules" /Mount/TmpFS/System/Kernel/Modules
+###########################################
+# /Mount/Media (our final root filesystem)
+###########################################
 
-for pkg in /Mount/TmpFS/Programs/*
+# Bind-mount /Mount/TmpFS/* on /Mount/Media/*
+mount -t tmpfs none /Mount/Media
+for subdir in /Mount/TmpFS/*
+do
+    mkdir -p /Mount/Media/`basename $subdir`
+    mount -o bind $subdir /Mount/Media/`basename $subdir`
+done
+
+# Copy the contents of /Mount/SquashFS/Rest to /Mount/Media
+cp -r /Mount/SquashFS/Rest/* /Mount/Media/
+
+# Install unmanaged files
+echo "Installing unmanaged files"
+mount -o bind "/Mount/Media/Programs/Linux/Current/lib/modules" /Mount/Media/System/Kernel/Modules
+
+for pkg in /Mount/Media/Programs/*
 do
    unmanageddir="$pkg/Current/Resources/Unmanaged"
    [ ! -d "$unmanageddir" ] && continue
    if [ $(basename "$pkg") = "Linux" ]
    then
       # These files are way too big to be copied.
-      mount -o bind "$unmanageddir/System/Kernel/Boot" /Mount/TmpFS/System/Kernel/Boot
+      mount -o bind "$unmanageddir/System/Kernel/Boot" /Mount/Media/System/Kernel/Boot
    elif [ $(basename "$pkg") = "Linux-Firmware" ]
    then
       # These files are way too big to be copied, too.
-      lndir="$(echo $unmanageddir | sed 's,/Mount/TmpFS,,g')/System/Index/lib/firmware"
-      mkdir -p /Mount/TmpFS/System/Index/lib/firmware/
-      for i in "/Mount/TmpFS${lndir}"/*
+      lndir="$(echo $unmanageddir | sed 's,/Mount/Media,,g')/System/Index/lib/firmware"
+      mkdir -p /Mount/Media/System/Index/lib/firmware/
+      for i in "/Mount/Media${lndir}"/*
       do
           bname=$(basename $i)
-          ln -fs $lndir/$bname /Mount/TmpFS/System/Index/lib/firmware/$bname
+          ln -fs $lndir/$bname /Mount/Media/System/Index/lib/firmware/$bname
       done
    else
-      cp -r "$unmanageddir/"* /Mount/TmpFS/ 
+      cp -r "$unmanageddir/"* /Mount/Media/
    fi
 done
 
+
 echo "Performing pivot_root..."
-cd /Mount/TmpFS
+cd /Mount/Media
 /bin/pivot_root . Mount/.Pivot
 
 # ensure that the inittab from LiveCD is used. this is later replaced
