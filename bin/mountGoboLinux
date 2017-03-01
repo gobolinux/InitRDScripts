@@ -6,7 +6,7 @@ cdrom=/Mount/CD-ROM
 libdir=/lib/modules/
 moddir=/System/Kernel/Modules/
 mount -t sysfs none /sys
-mount -t tmpfs none /tmp; cp -r $libdir/$(uname -r) /tmp
+mount -t tmpfs none /tmp; cp -a $libdir/$(uname -r) /tmp
 mount -t tmpfs none $libdir; mv /tmp/$(uname -r) $libdir
 mount -o bind $libdir $moddir
 depmod

@@ -88,7 +88,7 @@ do
 done
 
 # Copy the contents of /Mount/SquashFS/Rest to /Mount/Media
-cp -r /Mount/SquashFS/Rest/* /Mount/Media/
+cp -a /Mount/SquashFS/Rest/* /Mount/Media/
 
 # Install unmanaged files
 echo "Installing unmanaged files"
@@ -113,7 +113,7 @@ do
           ln -fs $lndir/$bname /Mount/Media/System/Index/lib/firmware/$bname
       done
    else
-      cp -r "$unmanageddir/"* /Mount/Media/
+      cp -a "$unmanageddir/"* /Mount/Media/
    fi
 done
 
